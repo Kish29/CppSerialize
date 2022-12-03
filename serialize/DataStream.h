@@ -10,6 +10,9 @@
 #include "cstdint"
 #include "string"
 #include "iostream"
+#include "list"
+#include "map"
+#include "set"
 
 namespace yazi {
     namespace serialize {
@@ -22,11 +25,11 @@ namespace yazi {
                 INT64,      // 9 = Type(1)+Value(8)
                 FLOAT,      // 5 = Type(1)+Value(4)
                 DOUBLE,     // 9 = Type(1)+Value(8)
-                STRING,     // var = Type(1)+Len(5)(type+value)+value(var)
-                VECTOR,
-                LIST,
-                MAP,
-                SET,
+                STRING,     // var = Type(1)+Len(5)(type+value)+Value(var)
+                VECTOR,     // var = Type(1)+Len(5)(type+value)+Value(T + T + T + ...)
+                LIST,       // var = Type(1)+Len(5)(type+value)+Value(T + T + T + ...)
+                MAP,        // var = Type(1)+Len(5)(type+value)+Value((K,V) + (K,V) + (K,V) + ...)
+                SET,        // var = Type(1)+Len(5)(type+value)+Value(T + T + T + ...)
                 CUSTOM
             };
         public:
@@ -45,6 +48,19 @@ namespace yazi {
             void write(double value);
             void write(const char *value);
             void write(const std::string &value);
+
+            template<class T>
+            void write(const std::vector<T> &value);
+
+            template<class T>
+            void write(const std::list<T> &value);
+
+            template<class K, class V>
+            void write(const std::map<K, V> &value);
+
+            template<class T>
+            void write(const std::set<T> &value);
+
             bool read(bool &value);
             bool read(char &value);
             bool read(int32_t &value);
@@ -52,6 +68,18 @@ namespace yazi {
             bool read(float &value);
             bool read(double &value);
             bool read(std::string &value);
+
+            template<class T>
+            bool read(std::vector<T> &value);
+
+            template<class T>
+            bool read(std::list<T> &value);
+
+            template<class K, class V>
+            bool read(std::map<K, V> &value);
+
+            template<class T>
+            bool read(std::set<T> &value);
 
             DataStream &operator<<(bool value);
             DataStream &operator<<(char value);
@@ -61,6 +89,15 @@ namespace yazi {
             DataStream &operator<<(double value);
             DataStream &operator<<(const char *value);
             DataStream &operator<<(const std::string &value);
+            template<class T>
+            DataStream &operator<<(const std::vector<T> &value);
+            template<class T>
+            DataStream &operator<<(const std::list<T> &value);
+            template<class K, class V>
+            DataStream &operator<<(const std::map<K, V> &value);
+            template<class T>
+            DataStream &operator<<(const std::set<T> &value);
+
             DataStream &operator>>(bool &value);
             DataStream &operator>>(char &value);
             DataStream &operator>>(int32_t &value);
@@ -68,13 +105,21 @@ namespace yazi {
             DataStream &operator>>(float &value);
             DataStream &operator>>(double &value);
             DataStream &operator>>(std::string &value);
+            template<class T>
+            DataStream &operator>>(std::vector<T> &value);
+            template<class T>
+            DataStream &operator>>(std::list<T> &value);
+            template<class K, class V>
+            DataStream &operator>>(std::map<K, V> &value);
+            template<class T>
+            DataStream &operator>>(std::set<T> &value);
 
         private:
             std::vector<char> m_buf;
-            int m_pos;
+            std::size_t m_pos;
 
         private:
-            // 写入数据
+            // 向buffer中写入真实数据
             void write(const char *data, int len);
 
             void reserve(int len);
@@ -380,6 +425,172 @@ namespace yazi {
         }
 
         DataStream &DataStream::operator>>(std::string &value) {
+            read(value);
+            return *this;
+        }
+
+        template<class T>
+        void DataStream::write(const std::vector<T> &value) {
+            char type = DataType::VECTOR;
+            write((char *) &type, sizeof(char));
+            int32_t len = value.size();
+            write(len);
+            for (auto item: value) {
+                write(item);
+            }
+        }
+
+        template<class T>
+        void DataStream::write(const std::list<T> &value) {
+            char type = DataType::LIST;
+            write((char *) &type, sizeof(char));
+            int32_t len = value.size();
+            write(len);
+            for (auto item: value) {
+                write(item);
+            }
+        }
+
+        template<class T>
+        bool DataStream::read(std::vector<T> &value) {
+            value.clear();
+            if ((DataType) m_buf[m_pos] != DataType::VECTOR) {
+                return false;
+            }
+            ++m_pos;
+            int len;
+            read(len);
+            for (int i = 0; i < len; ++i) {
+                T v;
+                read(v);
+                value.push_back(v);
+            }
+            return true;
+        }
+
+        template<class T>
+        bool DataStream::read(std::list<T> &value) {
+            value.clear();
+            if ((DataType) m_buf[m_pos] != DataType::LIST) {
+                return false;
+            }
+            ++m_pos;
+            int len;
+            read(len);
+            for (int i = 0; i < len; ++i) {
+                T v;
+                read(v);
+                value.push_back(v);
+            }
+            return true;
+        }
+
+        template<class K, class V>
+        void DataStream::write(const std::map<K, V> &value) {
+            char type = DataType::MAP;
+            write((char *) &type, sizeof(type));
+            int32_t len = value.size();
+            write(len);
+            for (auto &it: value) {
+                write(it.first);
+                write(it.second);
+            }
+        }
+
+        template<class T>
+        void DataStream::write(const std::set<T> &value) {
+            char type = DataType::SET;
+            write((char *) &type, sizeof(type));
+            int32_t len = value.size();
+            write(len);
+            for (auto &it: value) {
+                write(it);
+            }
+        }
+
+
+        template<class K, class V>
+        bool DataStream::read(std::map<K, V> &value) {
+            value.clear();
+            if ((DataType) m_buf[m_pos] != DataType::MAP) {
+                return false;
+            }
+            ++m_pos;
+            int len;
+            read(len);
+            for (int i = 0; i < len; ++i) {
+                K k;
+                read(k);
+                V v;
+                read(v);
+                value[k] = v;
+            }
+            return true;
+        }
+
+
+        template<class T>
+        bool DataStream::read(std::set<T> &value) {
+            value.clear();
+            if ((DataType) m_buf[m_pos] != DataType::SET) {
+                return false;
+            }
+            ++m_pos;
+            int len;
+            read(len);
+            for (int i = 0; i < len; ++i) {
+                T v;
+                read(v);
+                value.insert(v);
+            }
+            return true;
+        }
+
+
+        template<class T>
+        DataStream &DataStream::operator<<(const std::vector<T> &value) {
+            write(value);
+            return *this;
+        }
+
+        template<class T>
+        DataStream &DataStream::operator<<(const std::list<T> &value) {
+            write(value);
+            return *this;
+        }
+
+        template<class K, class V>
+        DataStream &DataStream::operator<<(const std::map<K, V> &value) {
+            write(value);
+            return *this;
+        }
+
+        template<class T>
+        DataStream &DataStream::operator<<(const std::set<T> &value) {
+            write(value);
+            return *this;
+        }
+
+        template<class T>
+        DataStream &DataStream::operator>>(std::vector<T> &value) {
+            read(value);
+            return *this;
+        }
+
+        template<class T>
+        DataStream &DataStream::operator>>(std::list<T> &value) {
+            read(value);
+            return *this;
+        }
+
+        template<class K, class V>
+        DataStream &DataStream::operator>>(std::map<K, V> &value) {
+            read(value);
+            return *this;
+        }
+
+        template<class T>
+        DataStream &DataStream::operator>>(std::set<T> &value) {
             read(value);
             return *this;
         }

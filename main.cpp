@@ -69,7 +69,56 @@ void readTest() {
     std::cout << sr;
 }
 
+void listTest() {
+    DataStream ds;
+
+    std::vector<int> v{1, 2, 3};
+    ds << v;
+
+    std::list<std::string> m{"jar", "lzy", "zyf"};
+    ds << m;
+
+    std::vector<int> v2;
+    ds >> v2;
+    for (auto item: v2) {
+        std::cout << item << std::endl;
+    }
+
+    std::list<std::string> v3;
+    ds >> v3;
+    for (auto &item: v3) {
+        std::cout << item << std::endl;
+    }
+}
+
+void mapTest() {
+    DataStream ds;
+    std::map<std::string, int> m;
+    m["a"] = 1;
+    m["b"] = 2;
+    m["c"] = 3;
+    ds << m;
+
+    std::map<std::string, int> m2;
+    ds >> m2;
+    for (auto &it: m2) {
+        std::cout << it.first << "=" << it.second << std::endl;
+    }
+
+    std::set<std::string> s;
+    s.insert("jar");
+    s.insert("lzy");
+    s.insert("zyf");
+    ds << s;
+    std::set<std::string> s2;
+    ds >> s2;
+    for (auto &it: s2) {
+        std::cout << it << std::endl;
+    }
+}
+
 int main() {
-    readTest();
+    listTest();
+    mapTest();
     return 0;
 }
