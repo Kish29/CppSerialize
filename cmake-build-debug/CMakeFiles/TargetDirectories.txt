@@ -1,3 +1,0 @@
-D:/Softwares/Cygwin/home/jiangaoran/cpp/github.com/Kish2/CppSerialize/cmake-build-debug/CMakeFiles/CppSerialize.dir
-D:/Softwares/Cygwin/home/jiangaoran/cpp/github.com/Kish2/CppSerialize/cmake-build-debug/CMakeFiles/edit_cache.dir
-D:/Softwares/Cygwin/home/jiangaoran/cpp/github.com/Kish2/CppSerialize/cmake-build-debug/CMakeFiles/rebuild_cache.dir
