@@ -13,6 +13,8 @@
 #include "list"
 #include "map"
 #include "set"
+#include "Serialize.h"
+#include "algorithm"
 
 namespace yazi {
     namespace serialize {
@@ -32,11 +34,17 @@ namespace yazi {
                 SET,        // var = Type(1)+Len(5)(type+value)+Value(T + T + T + ...)
                 CUSTOM
             };
+            enum ByteOrder {
+                BigEndian,
+                LittleEndian
+            };
         public:
-            DataStream() : m_pos(0) {};
+            DataStream() : m_pos(0), m_byteorder(byteorder()) {};
 
             ~DataStream() = default;
 
+            void set_type(DataType type);
+            DataType get_type();
             std::size_t size() const;
             void display() const;
             void display(std::ostream &out) const;
@@ -48,6 +56,10 @@ namespace yazi {
             void write(double value);
             void write(const char *value);
             void write(const std::string &value);
+            void write(const Serializable &value);
+            template<class T, class ...Args>
+            void write_args(const T &value, const Args &...args);
+            static void write_args();
 
             template<class T>
             void write(const std::vector<T> &value);
@@ -68,6 +80,7 @@ namespace yazi {
             bool read(float &value);
             bool read(double &value);
             bool read(std::string &value);
+            bool read(Serializable &value);
 
             template<class T>
             bool read(std::vector<T> &value);
@@ -81,6 +94,10 @@ namespace yazi {
             template<class T>
             bool read(std::set<T> &value);
 
+            template<class T, class ...Args>
+            bool read_args(T &value, Args &...args);
+            static bool read_args();
+
             DataStream &operator<<(bool value);
             DataStream &operator<<(char value);
             DataStream &operator<<(int32_t value);
@@ -89,6 +106,7 @@ namespace yazi {
             DataStream &operator<<(double value);
             DataStream &operator<<(const char *value);
             DataStream &operator<<(const std::string &value);
+            DataStream &operator<<(const Serializable &value);
             template<class T>
             DataStream &operator<<(const std::vector<T> &value);
             template<class T>
@@ -105,6 +123,7 @@ namespace yazi {
             DataStream &operator>>(float &value);
             DataStream &operator>>(double &value);
             DataStream &operator>>(std::string &value);
+            DataStream &operator>>(Serializable &value);
             template<class T>
             DataStream &operator>>(std::vector<T> &value);
             template<class T>
@@ -117,12 +136,15 @@ namespace yazi {
         private:
             std::vector<char> m_buf;
             std::size_t m_pos;
+            ByteOrder m_byteorder;
 
         private:
             // 向buffer中写入真实数据
             void write(const char *data, int len);
 
             void reserve(int len);
+
+            static ByteOrder byteorder();
         };
 
         void DataStream::write(const char *data, int len) {
@@ -172,6 +194,11 @@ namespace yazi {
             // write type
             write((char *) &type, sizeof(char));
             // write value
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(int32_t));
+                std::reverse(first, last);
+            }
             write((char *) &value, sizeof(int32_t));
         }
 
@@ -179,6 +206,11 @@ namespace yazi {
             char type = DataType::INT64;
             // write type
             write((char *) &type, sizeof(char));
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(int64_t));
+                std::reverse(first, last);
+            }
             // write value
             write((char *) &value, sizeof(int64_t));
         }
@@ -187,6 +219,11 @@ namespace yazi {
             char type = DataType::FLOAT;
             // write type
             write((char *) &type, sizeof(char));
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(float));
+                std::reverse(first, last);
+            }
             // write value
             write((char *) &value, sizeof(float));
         }
@@ -195,6 +232,11 @@ namespace yazi {
             char type = DataType::DOUBLE;
             // write type
             write((char *) &type, sizeof(char));
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(double));
+                std::reverse(first, last);
+            }
             // write value
             write((char *) &value, sizeof(double));
         }
@@ -346,6 +388,11 @@ namespace yazi {
             ++m_pos;
             value = *((int32_t *) &m_buf[m_pos]);
             m_pos += sizeof(int32_t);
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(int32_t));
+                std::reverse(first, last);
+            }
             return true;
         }
 
@@ -356,6 +403,11 @@ namespace yazi {
             ++m_pos;
             value = *((int64_t *) &m_buf[m_pos]);
             m_pos += sizeof(int64_t);
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(int64_t));
+                std::reverse(first, last);
+            }
             return true;
         }
 
@@ -366,6 +418,11 @@ namespace yazi {
             ++m_pos;
             value = *((float *) &m_buf[m_pos]);
             m_pos += sizeof(float);
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(float));
+                std::reverse(first, last);
+            }
             return true;
         }
 
@@ -376,6 +433,11 @@ namespace yazi {
             ++m_pos;
             value = *((double *) &m_buf[m_pos]);
             m_pos += sizeof(double);
+            if (m_byteorder == ByteOrder::BigEndian) {
+                char *first = (char *) &value;
+                char *last = (char *) (&value + sizeof(double));
+                std::reverse(first, last);
+            }
             return true;
         }
 
@@ -593,6 +655,65 @@ namespace yazi {
         DataStream &DataStream::operator>>(std::set<T> &value) {
             read(value);
             return *this;
+        }
+
+
+        void DataStream::write(const Serializable &value) {
+            value.serialize(*this);
+        }
+
+        bool DataStream::read(Serializable &value) {
+            value.deserialize(*this);
+            return true;
+        }
+
+        DataStream &DataStream::operator<<(const Serializable &value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(Serializable &value) {
+            read(value);
+            return *this;
+        }
+
+        void DataStream::set_type(DataStream::DataType type) {
+            write((char *) &type, sizeof(char));
+        }
+
+        DataStream::DataType DataStream::get_type() {
+            auto type = (DataType) m_buf[m_pos];
+            m_pos++;
+            return type;
+        }
+
+        template<class T, class ...Args>
+        void DataStream::write_args(const T &value, const Args &...args) {
+            write(value);
+            write_args(args...);
+        }
+
+        void DataStream::write_args() {}
+
+        template<class T, class ...Args>
+        bool DataStream::read_args(T &value, Args &...args) {
+            bool b = read(value);
+            if (!b) {
+                return false;
+            }
+            return read_args(args...);
+        }
+
+        bool DataStream::read_args() { return true; }
+
+        DataStream::ByteOrder DataStream::byteorder() {
+            int x = 0x12345678;
+            char str[4];
+            memcpy(str, &x, sizeof(int));
+            if (str[0] == 0x12) {
+                return BigEndian;
+            }
+            return LittleEndian;
         }
     }
 }

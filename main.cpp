@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "DataStream.h"
 
 using namespace yazi::serialize;
@@ -117,8 +119,60 @@ void mapTest() {
     }
 }
 
+class User : public Serializable {
+public:
+    User() = default;
+    ~User() = default;
+
+    User(std::string name, int age) : m_name(std::move(name)), m_age(age) {}
+
+    void profile() const {
+        std::string ps;
+        if (!m_passwords.empty()) {
+            ps.append("[");
+            for (auto &p: m_passwords) {
+                ps.append(p).append(", ");
+            }
+            ps = ps.substr(0, ps.size() - 2);
+            ps.append("]");
+        }
+        std::cout << "{name=" << m_name << ", age=" << m_age << ", passwords=" << ps << "}" << std::endl;
+    }
+
+    void add_password(const std::string &p) {
+        m_passwords.push_back(p);
+    }
+
+    SERIALIZE(m_name, m_age, m_passwords)
+
+private:
+    std::string m_name{};
+    int m_age{};
+    std::list<std::string> m_passwords{};
+};
+
+void objectTest() {
+    DataStream ds;
+
+    User a("jar", 23);
+    a.add_password("hhh");
+    a.add_password("uuu");
+    ds << a;
+
+    User b;
+    b.profile();
+
+    ds >> b;
+    b.profile();
+}
+
 int main() {
-    listTest();
-    mapTest();
+    DataStream ds;
+    int a = 123;
+    ds << a;
+
+    int b;
+    ds >> b;
+    std::cout << b;
     return 0;
 }
