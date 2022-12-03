@@ -9,6 +9,7 @@
 #include "cstring"
 #include "cstdint"
 #include "string"
+#include "iostream"
 
 namespace yazi {
     namespace serialize {
@@ -29,10 +30,11 @@ namespace yazi {
                 CUSTOM
             };
         public:
-            DataStream() = default;
+            DataStream() : m_pos(0) {};
 
             ~DataStream() = default;
 
+            std::size_t size() const;
             void display() const;
             void display(std::ostream &out) const;
             void write(bool value);
@@ -43,9 +45,33 @@ namespace yazi {
             void write(double value);
             void write(const char *value);
             void write(const std::string &value);
+            bool read(bool &value);
+            bool read(char &value);
+            bool read(int32_t &value);
+            bool read(int64_t &value);
+            bool read(float &value);
+            bool read(double &value);
+            bool read(std::string &value);
+
+            DataStream &operator<<(bool value);
+            DataStream &operator<<(char value);
+            DataStream &operator<<(int32_t value);
+            DataStream &operator<<(int64_t value);
+            DataStream &operator<<(float value);
+            DataStream &operator<<(double value);
+            DataStream &operator<<(const char *value);
+            DataStream &operator<<(const std::string &value);
+            DataStream &operator>>(bool &value);
+            DataStream &operator>>(char &value);
+            DataStream &operator>>(int32_t &value);
+            DataStream &operator>>(int64_t &value);
+            DataStream &operator>>(float &value);
+            DataStream &operator>>(double &value);
+            DataStream &operator>>(std::string &value);
 
         private:
             std::vector<char> m_buf;
+            int m_pos;
 
         private:
             // 写入数据
@@ -162,13 +188,15 @@ namespace yazi {
                 switch ((DataType) m_buf[i]) {
                     case DataType::BOOL:
                         if ((int) m_buf[++i] == 0) {
-                            out << "false";
+                            out << std::boolalpha << false;
                         } else {
-                            out << "true";
+                            out << std::boolalpha << true;
                         }
+                        ++i;
                         break;
                     case DataType::CHAR:
                         out << m_buf[++i];
+                        ++i;
                         break;
                     case DataType::INT32:
                         out << *((int32_t *) (&m_buf[++i]));
@@ -186,12 +214,174 @@ namespace yazi {
                         out << *((double *) (&m_buf[++i]));
                         i += sizeof(double);
                         break;
-                    case DataType::STRING:
+                    case DataType::STRING: {
+                        if ((DataType) m_buf[++i] != DataType::INT32) {
+                            throw std::logic_error("parse string length error, length type not int32");
+                        }
+                        int len = *((int32_t *) (&m_buf[++i]));
+                        i += sizeof(int32_t);
+                        out << std::string(&m_buf[i], len);
+                        i += len;
                         break;
+                    }
                     default:
                         break;
                 }
             }
+        }
+
+        std::size_t DataStream::size() const {
+            return m_buf.size();
+        }
+
+        DataStream &DataStream::operator<<(bool value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(char value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(int32_t value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(int64_t value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(float value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(double value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(const char *value) {
+            write(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator<<(const std::string &value) {
+            write(value);
+            return *this;
+        }
+
+        bool DataStream::read(bool &value) {
+            if ((DataType) m_buf[m_pos] != DataType::BOOL) {
+                return false;
+            }
+            ++m_pos;
+            value = m_buf[m_pos];
+            ++m_pos;
+            return true;
+        }
+
+        bool DataStream::read(char &value) {
+            if ((DataType) m_buf[m_pos] != DataType::CHAR) {
+                return false;
+            }
+            ++m_pos;
+            value = m_buf[m_pos];
+            ++m_pos;
+            return true;
+        }
+
+        bool DataStream::read(int32_t &value) {
+            if ((DataType) m_buf[m_pos] != DataType::INT32) {
+                return false;
+            }
+            ++m_pos;
+            value = *((int32_t *) &m_buf[m_pos]);
+            m_pos += sizeof(int32_t);
+            return true;
+        }
+
+        bool DataStream::read(int64_t &value) {
+            if ((DataType) m_buf[m_pos] != DataType::INT64) {
+                return false;
+            }
+            ++m_pos;
+            value = *((int64_t *) &m_buf[m_pos]);
+            m_pos += sizeof(int64_t);
+            return true;
+        }
+
+        bool DataStream::read(float &value) {
+            if ((DataType) m_buf[m_pos] != DataType::FLOAT) {
+                return false;
+            }
+            ++m_pos;
+            value = *((float *) &m_buf[m_pos]);
+            m_pos += sizeof(float);
+            return true;
+        }
+
+        bool DataStream::read(double &value) {
+            if ((DataType) m_buf[m_pos] != DataType::DOUBLE) {
+                return false;
+            }
+            ++m_pos;
+            value = *((double *) &m_buf[m_pos]);
+            m_pos += sizeof(double);
+            return true;
+        }
+
+        bool DataStream::read(std::string &value) {
+            if ((DataType) m_buf[m_pos] != DataType::STRING) {
+                return false;
+            }
+            ++m_pos;
+            int len;
+            bool b = read(len);
+            if (len < 0) {
+                return false;
+            }
+            value.assign((char *) &m_buf[m_pos], len);
+            m_pos += len;
+            return true;
+        }
+
+        DataStream &DataStream::operator>>(bool &value) {
+            read(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(char &value) {
+            read(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(int32_t &value) {
+            read(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(int64_t &value) {
+            read(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(float &value) {
+            read(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(double &value) {
+            read(value);
+            return *this;
+        }
+
+        DataStream &DataStream::operator>>(std::string &value) {
+            read(value);
+            return *this;
         }
     }
 }
